@@ -64,13 +64,29 @@ export class UserService {
 
   async registerUser(username: string, profileImageCID: string): Promise<any> {
     const tx = this.contract.methods.register(username, profileImageCID);
-    const gas = await tx.estimateGas({ from: this.account.address });
+  
+    let gas;
+    try {
+      gas = await tx.estimateGas({ from: this.account.address });
+    } catch (error) {
+      console.error('Gas estimation failed:', error.message);
+      gas = 300000;  // 기본 가스 값 설정
+    }
+  
+    console.log(`Estimated Gas: ${gas}`);
+  
     const signedTx = await this.account.signTransaction({
+      from: this.account.address,
       to: this.contract.options.address,
       data: tx.encodeABI(),
-      gas,
+      gas,  // 가스 값 추가
+      gasPrice: this.web3.utils.toWei('10', 'gwei'),  // 기본 가스 가격 설정
     });
+  
     const receipt = await this.web3.eth.sendSignedTransaction(signedTx.rawTransaction);
+    console.log('Transaction Receipt:', receipt);
     return receipt;
   }
+
+  
 }
