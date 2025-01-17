@@ -3,10 +3,10 @@ import { JsonRpcProvider, Contract, JsonRpcSigner, formatUnits, parseUnits } fro
 import { createClient } from 'redis';
 
 @Injectable()
-export class AmigoService {
+export class LikeService {
   private provider: JsonRpcProvider;
   private contract: Contract;
-  private contractAddress: string = '0xdc64a140aa3e981100a9beca4e685f962f0cf6c9';
+  private contractAddress: string = '0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1';
   private redisClient;
 
   constructor() {

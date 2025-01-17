@@ -1,9 +1,9 @@
 import { Controller, Get, Param, Post, Body } from '@nestjs/common';
-import { AmigoService } from './app.service';
+import { LikeService } from './like.service';
 
-@Controller('amigo')
-export class AppController {
-  constructor(private readonly amigoService: AmigoService) {}
+@Controller('like')
+export class likeController {
+  constructor(private readonly amigoService: LikeService) {}
 
   // 특정 주소의 잔액 조회
   @Get('balance/:address')

@@ -20,11 +20,13 @@ export class UserController {
   ) {
     const { username } = body;
 
-    if (!file) {
-      throw new Error('Image file is required.');
-    }
+    // if (!file) {
+    //   throw new Error('Image file is required.');
+    // }
 
-    const profileImageCID = await this.userService.uploadImageToIPFS(file);
+    // const profileImageCID = await this.userService.uploadImageToIPFS(file);
+    const profileImageCID = "0x123456789";
+    
     const receipt = await this.userService.registerUser(username, profileImageCID);
 
     return {

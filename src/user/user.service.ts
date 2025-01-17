@@ -20,7 +20,7 @@ export class UserService {
   constructor(private configService: ConfigService) {
     const rpcUrl = this.configService.get<string>('API_URL');
     let privateKey = this.configService.get<string>('PRIVATE_KEY');
-    const contractAddress = this.configService.get<string>('CONTRACT_ADDRESS');
+    const contractAddress = this.configService.get<string>('USER_CONTRACT');
 
     console.log('Loaded PRIVATE_KEY:', privateKey);
   console.log('Loaded CONTRACT_ADDRESS:', contractAddress);
@@ -70,7 +70,7 @@ export class UserService {
       gas = await tx.estimateGas({ from: this.account.address });
     } catch (error) {
       console.error('Gas estimation failed:', error.message);
-      gas = 300000;  // 기본 가스 값 설정
+      gas = 10000;  // 기본 가스 값 설정
     }
   
     console.log(`Estimated Gas: ${gas}`);
