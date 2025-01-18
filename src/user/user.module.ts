@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
-import { UserService } from './user.service';
-import { UserController } from './user.controller';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
+import { UserService } from './user.service';
+import { UserController } from './user.controller';
 
 @Module({
   imports: [
@@ -11,12 +11,13 @@ import { JwtModule } from '@nestjs/jwt';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET'), // 환경변수에서 JWT 비밀키 설정
-        signOptions: { expiresIn: '1h' }, // 토큰 유효기간 설정
+        secret: configService.get<string>('JWT_SECRET'),
+        signOptions: { expiresIn: '100h' },
       }),
     }),
   ],
   controllers: [UserController],
   providers: [UserService],
+  exports: [UserService, JwtModule], // 다른 모듈에서 사용할 수 있도록 export
 })
 export class UserModule {}

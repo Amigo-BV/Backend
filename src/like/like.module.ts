@@ -1,15 +1,12 @@
 import { Module } from '@nestjs/common';
-import { likeController } from './like.controller';
-import { LikeService } from './like.service';
 import { ConfigModule } from '@nestjs/config';
+import { LikeService } from './like.service';
+import { LikeController } from './like.controller';
 import { UserModule } from '../user/user.module';
 
 @Module({
-  imports: [
-    ConfigModule.forRoot({ isGlobal: true}),
-    UserModule,
-  ],
-  controllers: [likeController],
+  imports: [ConfigModule, UserModule], // UserModule을 import
+  controllers: [LikeController],
   providers: [LikeService],
 })
-export class AppModule {}
+export class LikeModule {}

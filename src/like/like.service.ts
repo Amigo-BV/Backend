@@ -1,82 +1,87 @@
 import { Injectable } from '@nestjs/common';
-import { JsonRpcProvider, Contract, JsonRpcSigner, formatUnits, parseUnits } from 'ethers';
+import { ConfigService } from '@nestjs/config';
+import { Web3 } from 'web3';
+import * as contractABI from '../abi/AmigoContract.json';
 import { createClient } from 'redis';
 
 @Injectable()
 export class LikeService {
-  private provider: JsonRpcProvider;
-  private contract: Contract;
-  private contractAddress: string = '0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1';
+  private web3: Web3;
+  private contract: any;
   private redisClient;
 
-  constructor() {
-    this.provider = new JsonRpcProvider('http://localhost:8545');
+  constructor(private readonly configService: ConfigService) {
+    // 환경 변수로부터 RPC URL 및 컨트랙트 주소를 가져옵니다.
+    const rpcUrl = this.configService.get<string>('API_URL');
+    const contractAddress = this.configService.get<string>('AMIGO_CONTRACT');
 
-    const abi = [
-      "function balanceOf(address account) public view returns (uint256)",
-      "function transfer(address recipient, uint256 amount) public returns (bool)",
-    ];
+    // Web3 및 컨트랙트 초기화
+    this.web3 = new Web3(new Web3.providers.HttpProvider(rpcUrl));
+    this.contract = new this.web3.eth.Contract(contractABI.abi, contractAddress);
 
-    this.contract = new Contract(this.contractAddress, abi, this.provider);
+    // Redis 초기화
     this.redisClient = createClient({ url: 'redis://localhost:6379' });
     this.redisClient.connect();
   }
 
+  /**
+   * 서명 검증
+   */
+  verifySignature(message: string, signature: string): string {
+    try {
+      return this.web3.eth.accounts.recover(message, signature);
+    } catch (error) {
+      throw new Error('Invalid signature');
+    }
+  }
+
+  /**
+   * 잔액 조회
+   */
   async getBalance(address: string): Promise<string> {
-    const balance = await this.contract.balanceOf(address);
-    return formatUnits(balance, 18);
+    const balance = await this.contract.methods.balanceOf(address).call();
+    return this.web3.utils.fromWei(balance, 'ether');
   }
 
-  // 누가 니 돈 다 옮기면 좋을 것 같음?
-  async sendLike(to: string, amount: string): Promise<void> {
-    const signer: JsonRpcSigner = await this.provider.getSigner();
-    const from = await signer.getAddress();
+  /**
+   * 좋아요 전송
+   */
+  async sendLike(signerAddress: string, to: string, amount: string): Promise<void> {
+    const tx = this.contract.methods.transfer(to, this.web3.utils.toWei(amount, 'ether'));
+    const gas = await tx.estimateGas({ from: signerAddress });
 
-    const contractWithSigner = this.contract.connect(signer);
-    const tx = await contractWithSigner['transfer'](to, parseUnits(amount, 18));
-    await tx.wait();
+    const receipt = await tx.send({ from: signerAddress, gas });
+    console.log('Transaction successful:', receipt.transactionHash);
 
-    await this.redisClient.sAdd(`${from}send`, to);
-    await this.redisClient.sAdd(`${to}recieve`, from);
-
-    console.log(`Added ${to} to ${from}'s send list`);
-    console.log(`Added ${from} to ${to}'s recieve list`);
+    await this.redisClient.sAdd(`${signerAddress}send`, to);
+    await this.redisClient.sAdd(`${to}recieve`, signerAddress);
   }
 
-  //아무나 내가 누가 좋아하는지 다 보면 그렇잖아.
+  /**
+   * 좋아요 보낸 리스트 조회
+   */
   async getSendList(address: string): Promise<string[]> {
-    const sendList = await this.redisClient.sMembers(`${address}send`);
-    console.log(`${address}'s send list:`, sendList);
-    return sendList;
+    return await this.redisClient.sMembers(`${address}send`);
   }
 
-  // 아무나 내가 누가 좋아하는지 다 보면 그렇잖아.
-    async getRecieveList(address: string): Promise<string[]> {
-    const recieveList = await this.redisClient.sMembers(`${address}recieve`);
-    console.log(`${address}'s recieve list:`, recieveList);
-    return recieveList;
+  /**
+   * 좋아요 받은 리스트 조회
+   */
+  async getReceiveList(address: string): Promise<string[]> {
+    return await this.redisClient.sMembers(`${address}recieve`);
   }
 
-  //from의 주소랑 서명이랑 일치하는지 확인하는 거 어때?
-  //아무나 니 좋아요 맘대로 삭제하면 좆같지 않겠어?
+  /**
+   * 좋아요 보낸 리스트에서 특정 항목 제거
+   */
   async removeFromSendList(from: string, to: string): Promise<void> {
-    const result = await this.redisClient.sRem(`${from}send`, to);
-    if (result) {
-      console.log(`Removed ${to} from ${from}'s send list`);
-    } else {
-      console.log(`${to} not found in ${from}'s send list`);
-    }
+    await this.redisClient.sRem(`${from}send`, to);
   }
 
-
-  //from의 주소랑 서명이랑 일치하는지 확인하는 거 어때?
-  //아무나 니 좋아요 맘대로 삭제하면 좆같지 않겠어?
-  async removeFromRecieveList(from: string, to: string): Promise<void> {
-    const result = await this.redisClient.sRem(`${to}recieve`, from);
-    if (result) {
-      console.log(`Removed ${from} from ${to}'s recieve list`);
-    } else {
-      console.log(`${from} not found in ${to}'s recieve list`);
-    }
+  /**
+   * 좋아요 받은 리스트에서 특정 항목 제거
+   */
+  async removeFromReceiveList(from: string, to: string): Promise<void> {
+    await this.redisClient.sRem(`${to}recieve`, from);
   }
 }
