@@ -18,6 +18,7 @@ export class LikeService {
     ];
 
     this.contract = new Contract(this.contractAddress, abi, this.provider);
+
     this.redisClient = createClient({ url: 'redis://localhost:6379' });
     this.redisClient.connect();
   }
@@ -27,40 +28,59 @@ export class LikeService {
     return formatUnits(balance, 18);
   }
 
-  // 누가 니 돈 다 옮기면 좋을 것 같음?
   async sendLike(to: string, amount: string): Promise<void> {
     const signer: JsonRpcSigner = await this.provider.getSigner();
     const from = await signer.getAddress();
 
+    // 주소를 소문자로 통일
+    const fromLc = from.toLowerCase();
+    const toLc = to.toLowerCase();
+
     const contractWithSigner = this.contract.connect(signer);
-    const tx = await contractWithSigner['transfer'](to, parseUnits(amount, 18));
+    const tx = await contractWithSigner.transfer(toLc, parseUnits(amount, 18));
     await tx.wait();
 
-    await this.redisClient.sAdd(`${from}send`, to);
-    await this.redisClient.sAdd(`${to}recieve`, from);
+    // 모든 Redis 키에 소문자 주소 사용
+    await this.redisClient.sAdd(`${fromLc}send`, toLc);
+    await this.redisClient.sAdd(`${toLc}recieve`, fromLc);
 
-    console.log(`Added ${to} to ${from}'s send list`);
-    console.log(`Added ${from} to ${to}'s recieve list`);
+    console.log(`Added ${toLc} to ${fromLc}'s send list`);
+    console.log(`Added ${fromLc} to ${toLc}'s recieve list`);
+
+    // 매칭 여부 확인 시에도 소문자 주소 사용
+    const isMatched = await this.redisClient.sIsMember(`${toLc}send`, fromLc);
+    if (isMatched) {
+      await this.redisClient.sAdd(`${fromLc}matches`, toLc);
+      await this.redisClient.sAdd(`${toLc}matches`, fromLc);
+
+      console.log(`Match formed between ${fromLc} and ${toLc}`);
+    }
   }
 
-  //아무나 내가 누가 좋아하는지 다 보면 그렇잖아.
   async getSendList(address: string): Promise<string[]> {
-    const sendList = await this.redisClient.sMembers(`${address}send`);
+    const key = `${address.toLowerCase()}send`;
+    const sendList = await this.redisClient.sMembers(key);
     console.log(`${address}'s send list:`, sendList);
     return sendList;
   }
 
-  // 아무나 내가 누가 좋아하는지 다 보면 그렇잖아.
-    async getRecieveList(address: string): Promise<string[]> {
-    const recieveList = await this.redisClient.sMembers(`${address}recieve`);
+  async getRecieveList(address: string): Promise<string[]> {
+    const key = `${address.toLowerCase()}recieve`;
+    const recieveList = await this.redisClient.sMembers(key);
     console.log(`${address}'s recieve list:`, recieveList);
     return recieveList;
   }
 
-  //from의 주소랑 서명이랑 일치하는지 확인하는 거 어때?
-  //아무나 니 좋아요 맘대로 삭제하면 좆같지 않겠어?
+  async getMatches(address: string): Promise<string[]> {
+    const key = `${address.toLowerCase()}matches`;
+    const matches = await this.redisClient.sMembers(key);
+    console.log(`${address}'s matches: `, matches);
+    return matches;
+  }
+
   async removeFromSendList(from: string, to: string): Promise<void> {
-    const result = await this.redisClient.sRem(`${from}send`, to);
+    const key = `${from.toLowerCase()}send`;
+    const result = await this.redisClient.sRem(key, to.toLowerCase());
     if (result) {
       console.log(`Removed ${to} from ${from}'s send list`);
     } else {
@@ -68,11 +88,9 @@ export class LikeService {
     }
   }
 
-
-  //from의 주소랑 서명이랑 일치하는지 확인하는 거 어때?
-  //아무나 니 좋아요 맘대로 삭제하면 좆같지 않겠어?
   async removeFromRecieveList(from: string, to: string): Promise<void> {
-    const result = await this.redisClient.sRem(`${to}recieve`, from);
+    const key = `${to.toLowerCase()}recieve`;
+    const result = await this.redisClient.sRem(key, from.toLowerCase());
     if (result) {
       console.log(`Removed ${from} from ${to}'s recieve list`);
     } else {

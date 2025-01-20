@@ -5,22 +5,25 @@ import { LikeService } from './like.service';
 export class likeController {
   constructor(private readonly amigoService: LikeService) {}
 
-  // 특정 주소의 잔액 조회
   @Get('balance/:address')
   async getBalance(@Param('address') address: string): Promise<string> {
     return this.amigoService.getBalance(address);
   }
 
-  // 특정 주소의 좋아요 보낸 리스트 조회
   @Get('send-list/:address')
   async getSendList(@Param('address') address: string): Promise<string[]> {
     return this.amigoService.getSendList(address);
   }
 
-  // 특정 주소의 좋아요 받은 리스트 조회
   @Get('recieve-list/:address')
   async getRecieveList(@Param('address') address: string): Promise<string[]> {
     return this.amigoService.getRecieveList(address);
+  }
+
+  // **매칭 목록 조회**
+  @Get('matches/:address')
+  async getMatches(@Param('address') address: string): Promise<string[]> {
+    return this.amigoService.getMatches(address);
   }
 
   // 좋아요 전송

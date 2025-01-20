@@ -1,4 +1,12 @@
-import { Controller, Post, UploadedFile, UseInterceptors, Body } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  UploadedFile,
+  UseInterceptors,
+  Body,
+  Param,
+} from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UserService } from './user.service';
 
@@ -12,27 +20,51 @@ type File = {
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
-  @Post('register')
+  // 1) 이미지 업로드 (Pinata에 업로드 후 CID 반환)
+  @Post('upload-image')
   @UseInterceptors(FileInterceptor('file'))
-  async registerUser(
-    @UploadedFile() file: File,
-    @Body() body: { username: string },
+  async uploadImage(@UploadedFile() file: File) {
+    if (!file) {
+      throw new Error('No file uploaded');
+    }
+    const cid = await this.userService.uploadImageToIPFS(file);
+    return { cid };
+  }
+
+  // 2) MetaTx 회원가입
+  @Post('register-with-sig')
+  async registerWithSig(
+    @Body()
+    body: {
+      user: string;
+      username: string;
+      phone: string;
+      about: string;
+      cid: string;
+      signature: string;
+    },
   ) {
-    const { username } = body;
+    const { user, username, phone, about, cid, signature } = body;
 
-    // if (!file) {
-    //   throw new Error('Image file is required.');
-    // }
-
-    // const profileImageCID = await this.userService.uploadImageToIPFS(file);
-    const profileImageCID = "0x123456789";
-    
-    const receipt = await this.userService.registerUser(username, profileImageCID);
+    const txHash = await this.userService.registerWithSig(
+      user,
+      username,
+      phone,
+      about,
+      cid,
+      signature,
+    );
 
     return {
-      message: 'User registered successfully',
-      cid: profileImageCID,
-      txHash: receipt.transactionHash,
+      success: true,
+      txHash,
     };
+  }
+
+  // 3) 특정 유저 정보 조회 (컨트랙트에서 데이터 읽어오기)
+  @Get(':address')
+  async getUser(@Param('address') address: string) {
+    const userData = await this.userService.getUserFromContract(address);
+    return userData; 
   }
 }
